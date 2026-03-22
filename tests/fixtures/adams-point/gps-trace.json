@@ -1,0 +1,20 @@
+[
+  { "latitude": 37.81050, "longitude": -122.25200, "accuracy": 10, "note": "start: near Adams Point" },
+  { "latitude": 37.81000, "longitude": -122.25150, "accuracy": 10, "note": "walking south toward spice shop" },
+  { "latitude": 37.80950, "longitude": -122.25100, "accuracy": 10, "note": "approaching spice shop" },
+  { "latitude": 37.80900, "longitude": -122.25053, "accuracy": 8,  "note": "AT Oaktown Spice Shop (target 1)" },
+  { "latitude": 37.80950, "longitude": -122.25000, "accuracy": 10, "note": "leaving spice shop, heading east" },
+  { "latitude": 37.81000, "longitude": -122.24900, "accuracy": 10, "note": "heading toward Grand Lake" },
+  { "latitude": 37.81050, "longitude": -122.24850, "accuracy": 10, "note": "approaching Grand Ave" },
+  { "latitude": 37.81120, "longitude": -122.24780, "accuracy": 10, "note": "nearing theater" },
+  { "latitude": 37.81159, "longitude": -122.24733, "accuracy": 8,  "note": "AT Grand Lake Theater (target 2)" },
+  { "latitude": 37.81100, "longitude": -122.24800, "accuracy": 10, "note": "leaving theater, heading west" },
+  { "latitude": 37.81000, "longitude": -122.24850, "accuracy": 10, "note": "heading toward lake" },
+  { "latitude": 37.80920, "longitude": -122.24900, "accuracy": 10, "note": "approaching pergola" },
+  { "latitude": 37.80870, "longitude": -122.24940, "accuracy": 10, "note": "nearing pergola" },
+  { "latitude": 37.80838, "longitude": -122.24957, "accuracy": 8,  "note": "AT Lake Merritt Pergola (target 3)" },
+  { "latitude": 37.80850, "longitude": -122.25200, "accuracy": 10, "note": "heading west toward Fairyland" },
+  { "latitude": 37.80860, "longitude": -122.25500, "accuracy": 10, "note": "along lake path" },
+  { "latitude": 37.80870, "longitude": -122.25800, "accuracy": 10, "note": "approaching Fairyland" },
+  { "latitude": 37.80882, "longitude": -122.26025, "accuracy": 8,  "note": "AT Fairyland Entrance (target 4)" }
+]

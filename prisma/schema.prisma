@@ -1,0 +1,140 @@
+// v1: SQLite for fast local iteration. Swap to PostgreSQL for production.
+// Prisma makes this a one-line datasource change.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Player {
+  id          String       @id @default(uuid())
+  displayName String
+  createdAt   DateTime     @default(now())
+  sessions    PlayerSessionRecord[]
+  inventory   InventoryEntryRecord[]
+}
+
+model PlayerSessionRecord {
+  id             String                @id @default(uuid())
+  playerId       String
+  player         Player                @relation(fields: [playerId], references: [id])
+  status         String                // active | paused | completed | abandoned
+  startedAt      DateTime              @default(now())
+  endedAt        DateTime?
+  lastLocationAt DateTime?
+  distanceMeters Float                 @default(0)
+  activeQuestId  String?
+  locations      LocationSampleRecord[]
+  quests         QuestRecord[]
+  events         GameEventRecord[]
+
+  @@index([playerId, status])
+}
+
+model LocationSampleRecord {
+  id         String              @id @default(uuid())
+  sessionId  String
+  session    PlayerSessionRecord @relation(fields: [sessionId], references: [id])
+  latitude   Float
+  longitude  Float
+  accuracy   Float
+  altitude   Float?
+  speed      Float?
+  heading    Float?
+  timestamp  DateTime            // device time
+  receivedAt DateTime            @default(now())
+
+  @@index([sessionId, timestamp])
+}
+
+model PlaceRecord {
+  id             String          @id @default(uuid())
+  externalId     String          @unique
+  providerSource String
+  name           String
+  category       String
+  latitude       Float
+  longitude      Float
+  address        String?
+  isAccessible   Boolean         @default(true)
+  isOutdoor      Boolean         @default(true)
+  radiusMeters   Float           @default(30)
+  questLegs      QuestLegRecord[]
+
+  @@index([latitude, longitude])
+}
+
+model QuestRecord {
+  id              String              @id @default(uuid())
+  sessionId       String
+  session         PlayerSessionRecord @relation(fields: [sessionId], references: [id])
+  title           String
+  narrative       String
+  status          String              // active | completed | failed | expired
+  currentLegIndex Int                 @default(0)
+  createdAt       DateTime            @default(now())
+  completedAt     DateTime?
+  legs            QuestLegRecord[]
+
+  @@index([sessionId, status])
+}
+
+model QuestLegRecord {
+  id                   String       @id @default(uuid())
+  questId              String
+  quest                QuestRecord  @relation(fields: [questId], references: [id])
+  sequenceIndex        Int
+  status               String       // locked | active | reached | completed | skipped
+  objective            String
+  targetPlaceId        String
+  targetPlace          PlaceRecord  @relation(fields: [targetPlaceId], references: [id])
+  rewardItemId         String
+  rewardItem           ItemRecord   @relation(fields: [rewardItemId], references: [id])
+  geofenceRadiusMeters Float        @default(30)
+  reachedAt            DateTime?
+  completedAt          DateTime?
+
+  @@unique([questId, sequenceIndex])
+}
+
+model ItemRecord {
+  id          String               @id @default(uuid())
+  name        String
+  description String
+  rarity      String               // common | uncommon | rare | legendary
+  iconKey     String
+  questLegs   QuestLegRecord[]
+  inventory   InventoryEntryRecord[]
+}
+
+model InventoryEntryRecord {
+  id                     String   @id @default(uuid())
+  playerId               String
+  player                 Player   @relation(fields: [playerId], references: [id])
+  itemId                 String
+  item                   ItemRecord @relation(fields: [itemId], references: [id])
+  quantity               Int      @default(1)
+  firstCollectedAt       DateTime @default(now())
+  lastCollectedAt        DateTime @default(now())
+  collectedAtPlaceId     String
+  collectedDuringQuestId String
+
+  @@unique([playerId, itemId])
+}
+
+model GameEventRecord {
+  id             String              @id @default(uuid())
+  idempotencyKey String              @unique
+  sessionId      String
+  session        PlayerSessionRecord @relation(fields: [sessionId], references: [id])
+  eventType      String
+  payload        String              // JSON string (SQLite doesn't have native JSON)
+  processedAt    DateTime            @default(now())
+
+  @@index([sessionId, eventType])
+  @@index([idempotencyKey])
+}

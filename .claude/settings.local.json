@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(rm -rf src/services src/providers src/persistence src/logging src/config src/client src/domain src/validation)",
+      "Bash(mkdir -p src/domain/location src/domain/quest src/domain/place src/domain/inventory src/domain/player src/domain/event src/domain/safety src/application src/infrastructure/persistence/repositories src/infrastructure/persistence/mappers src/infrastructure/providers/map src/infrastructure/providers/routing src/infrastructure/logging src/infrastructure/config src/presentation/components/map src/presentation/components/hud src/presentation/components/ui src/presentation/hooks src/presentation/lib src/validation)",
+      "Bash(npm install:*)",
+      "Bash(cd:*)",
+      "Bash(npx vitest:*)",
+      "Bash(timeout 15 npx next dev --port 3000)",
+      "Bash(timeout 20 npx next dev --port 3737)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run:*)",
+      "Bash(npm test:*)",
+      "WebFetch(domain:www.latlong.net)",
+      "WebFetch(domain:nominatim.openstreetmap.org)",
+      "Bash(curl:*)",
+      "WebFetch(domain:foursquare.com)",
+      "WebFetch(domain:www.google.com)"
+    ]
+  }
+}
