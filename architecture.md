@@ -8,9 +8,14 @@ Minimal playable loop: hardcoded quest chain around Adams Point / Grand Lake,
 in-memory state, browser geolocation, proximity collection, TTS announcements.
 
 ## Friends & family milestone (current)
-Dynamic quest generation: user configures start location, goal, distance, and
-objective count. LLM generates thematic quest plan, Google Places API finds real
-nearby locations, route planner orders them within distance budget.
+Dynamic quest generation via a two-phase pipeline:
+1. LLM generates a theme schema with candidate objective buckets (1.5x outbound count)
+2. Google Places API builds a broad candidate pool (multiple results per type)
+3. Domain scoring ranks candidates by thematic fit, proximity, and spatial novelty
+4. Combinatorial subset selection picks the best route-feasible combination (N-1 outbound stops)
+5. Start location is reverse-geocoded and appended as the final "return home" stop
+6. Google Routes API computes walking distances for the selected route
+7. Second LLM call generates narrative tailored to the actual selected places (including home)
 
 ## Product flow
 User configures quest on `/configure` page -> server generates quest via LLM + Places API ->
@@ -25,7 +30,7 @@ returns updated state to client -> client renders + announces via TTS.
 - domain engine (pure TypeScript, zero framework imports)
 - persistence (in-memory store; DB deferred to post-alpha)
 - map/place provider adapter (Google Places API + fixture fallback)
-- LLM provider adapter (OpenAI GPT-4o-mini for quest plan generation)
+- LLM provider adapter (OpenAI GPT-4o-mini, two-phase: theme plan + narrative)
 - simulation/test harness
 - observability (console logging for alpha; structured logging deferred)
 
@@ -34,7 +39,9 @@ returns updated state to client -> client renders + announces via TTS.
 - LocationSample
 - Quest
 - QuestLeg
-- QuestConfig
+- QuestConfig (includes optional maxRouteLength)
+- ThemeSchema, ObjectiveBucket
+- ScoredCandidate
 - Objective
 - PlaceCandidate
 - InventoryItem
@@ -47,17 +54,23 @@ returns updated state to client -> client renders + announces via TTS.
 - collection is proximity/pass-based, not check-in based
 - quests are generated only from allowed place categories
 - provider-specific data is normalized before domain use
-- route total distance must respect user's max distance budget
+- narrative is generated AFTER place selection (not before)
+- the final quest stop is always the player's starting location (return home); the LLM reimagines the address as a thematic location name
+- route budget is enforced during subset selection, not post-hoc
+- `maxDistanceMeters` = search radius for individual places; `maxRouteLength` = total route budget
+- route distance reported to the user is walking (street) distance via Google Routes API, not haversine
+- haversine is used for initial scoring/selection; street distance is computed post-selection for final reporting
 
 ## Boundaries
 ### Domain (`src/domain/`)
-Pure rules for pass detection, collection, progression, quest state, and route planning.
+Pure rules for pass detection, collection, progression, quest state, route planning,
+candidate scoring, and subset selection.
 No imports from Next.js, React, or infrastructure modules.
 
 ### Application (`src/application/`)
 Coordinates use cases:
 - ingestLocation
-- generateDynamicQuest (LLM + Places API orchestration)
+- generateDynamicQuest (theme plan → candidate pool → scoring → selection → narrative)
 - startSession (session-only; quest attached separately)
 - alpha quest chain (fixture fallback)
 
@@ -65,7 +78,7 @@ Coordinates use cases:
 - In-memory game store — DB repositories deferred to post-alpha
 - Google Places API provider (via direct fetch)
 - Fixture provider (hardcoded Adams Point places, fallback)
-- OpenAI LLM provider (GPT-4o-mini, structured JSON output)
+- OpenAI LLM provider (GPT-4o-mini, structured JSON output, two-phase)
 - Place type mapping (Google → domain PlaceCategory)
 - Config (constants + env)
 - Logging (console for alpha)
@@ -73,7 +86,10 @@ Coordinates use cases:
 ### Presentation (`src/app/`)
 - Mobile-first React UI
 - Quest configuration page (`/configure`) with Google Maps picker
-- Run page (`/run`) with GPS tracking, progress, inventory, TTS
+- Run page (`/run`) with GPS tracking, GPS trail polyline, progress, inventory, TTS, share button
+- Spectator page (`/spectate`) — read-only live view of a runner's progress via polling
+- Architecture diagram page (`/architecture`) with Mermaid-rendered system diagrams
+- Shared components: `MapPolyline` (imperative `google.maps.Polyline` wrapper via `useMap()`)
 - API route handlers (Zod-validated)
 - Browser TTS integration (`speechSynthesis` API)
 
@@ -92,29 +108,36 @@ No domain code may depend directly on a specific maps SDK response shape.
 
 ### Google Places API provider
 Uses Places API (New) via direct HTTP fetch. Searches for nearby places by type
-around the user's start location. Normalizes results to `PlaceCandidate`.
+around the user's start location. Returns multiple candidates per type for
+pool-based selection. Normalizes results to `PlaceCandidate`.
 
 ### Fixture provider (fallback)
 Hardcoded Adams Point / Grand Lake POIs for `MAP_PROVIDER=fixture` mode.
 Deterministic and testable.
 
 ### LLM provider (OpenAI)
-GPT-4o-mini generates structured quest plans from free-text goals.
-Uses `response_format: json_schema` for guaranteed valid JSON output.
-Temperature escalation (0.3 → 0.7) when creative type suggestions are needed.
+Two-phase GPT-4o-mini integration:
+1. `generateThemePlan()` — generates objective buckets with fallback place types and thematic strength scores. Uses `response_format: json_schema`. Temperature 0.5.
+2. `generateNarrative()` — generates final title, narrative arc, per-stop objectives, and reward items for the actual selected places. Temperature 0.3.
+
+### Routing provider (Google Routes API)
+`buildWalkingDistanceMatrix()` computes street-level walking distances between consecutive route waypoints. Called post-selection (not during scoring) to minimize API cost. Falls back to haversine on failure. Domain functions accept an optional `DistanceFn` parameter for testability.
 
 ## Data contracts
 Zod schemas at every API boundary:
 - `src/validation/session-schemas.ts` — session start/response
 - `src/validation/location-schemas.ts` — GPS batch ingestion
 - `src/validation/quest-schemas.ts` — quest state response
-- `src/validation/quest-generation-schemas.ts` — quest generation config
+- `src/validation/quest-generation-schemas.ts` — quest generation config (includes optional `maxRouteLength`)
+- `src/validation/spectate-schemas.ts` — spectator API response (session, quest, trail, inventory)
 - `src/validation/common-schemas.ts` — coordinates, uuid, pagination
 
 ## Workflows
 - [start-session](docs/workflows/start-session.md)
 - [generate-quest](docs/workflows/generate-quest.md)
+- [run-gameplay](docs/workflows/run-gameplay.md)
 - [collect-item-by-passing-target](docs/workflows/collect-item-by-passing-target.md)
+- [spectate](docs/workflows/spectate.md)
 
 ## Testing strategy
 ### Alpha (complete)
@@ -123,8 +146,14 @@ Zod schemas at every API boundary:
 - manual: dogfood on a real run around Adams Point
 
 ### Friends & family (current)
-- unit: route planner (nearest-neighbor, distance, budget)
-- integration: dynamic quest generation with mocked LLM + Places API
+- unit: route planner (nearest-neighbor, 2-opt, distance, budget)
+- unit: candidate scorer (thematic, proximity, novelty)
+- unit: subset selector (combinatorial selection, budget enforcement)
+- unit: quest generator (leg initialization, state machine)
+- unit: Zod schema validation (bounds, defaults, optional fields)
+- unit: place type mapping (Google ↔ domain category)
+- integration: dynamic quest generation with mocked two-phase LLM + Places API
+- integration: error paths (no places, API errors, over-budget warning, reduced count)
 - manual: test on real devices with live API keys
 
 ### Deferred to post-alpha
@@ -134,8 +163,10 @@ Zod schemas at every API boundary:
 
 ## Known risks
 - `sessionStorage` is cleared if the browser tab closes or the page is force-refreshed mid-run. Session recovery is deferred to post-alpha.
-- LLM may generate place types with no nearby results; mitigated by temperature escalation retry.
-- Route may exceed distance budget; mitigated by shrinking search radius (max 3 retries).
+- Two LLM calls + one Routes API call per quest generation adds ~2-3s latency. Theme call is small; narrative call is comparable to the previous single call; Routes API call is fast (~200ms).
+- LLM may generate place types with no nearby results; mitigated by 1-3 fallback types per bucket and broad candidate pool.
+- Route may exceed distance budget; mitigated by combinatorial subset selection with route constraint. Over-budget quests return a warning instead of failing silently.
+- Combination explosion for high objective counts (10 objectives × 5 candidates = ~10M combos); mitigated by early pruning and 100K evaluation cap with greedy fallback.
 
 ## Open decisions
 - PWA offline support strategy

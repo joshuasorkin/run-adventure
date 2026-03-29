@@ -9,6 +9,8 @@ import type { LocationSample, LocationSampleId, Coordinates } from "@/domain/loc
 import type { PlaceCandidate, PlaceId, PlaceCategory } from "@/domain/place/place-candidate";
 import type { Quest, QuestLeg, QuestId, QuestLegId } from "@/domain/quest/quest";
 import type { InventoryItem, ItemId } from "@/domain/inventory/inventory-item";
+import type { ObjectiveBucket, ThemeSchema } from "@/domain/quest/theme-schema";
+import type { ScoredCandidate } from "@/domain/quest/candidate-scorer";
 
 // --- Coordinates ---
 
@@ -135,6 +137,45 @@ export function makeQuestLeg(overrides: Partial<QuestLeg> = {}): QuestLeg {
     ...overrides,
   };
 }
+
+// --- Theme / Scoring Factories ---
+
+let bucketCounter = 0;
+
+export function makeObjectiveBucket(overrides: Partial<ObjectiveBucket> = {}): ObjectiveBucket {
+  bucketCounter++;
+  return {
+    bucketId: `bucket-${bucketCounter}`,
+    placeTypes: ["park"],
+    narrativeHint: "explore the area",
+    thematicStrength: 0.8,
+    ...overrides,
+  };
+}
+
+export function makeThemeSchema(overrides: Partial<ThemeSchema> = {}): ThemeSchema {
+  return {
+    titleSeed: "The Grand Quest",
+    narrativePremise: "A mysterious adventure awaits.",
+    buckets: [makeObjectiveBucket(), makeObjectiveBucket({ placeTypes: ["library"] })],
+    ...overrides,
+  };
+}
+
+export function makeScoredCandidate(
+  overrides: Partial<ScoredCandidate> = {},
+): ScoredCandidate {
+  return {
+    place: makePlaceCandidate(),
+    bucketId: `bucket-${bucketCounter++}`,
+    thematicStrength: 0.8,
+    distanceFromStart: 200,
+    score: 0.7,
+    ...overrides,
+  };
+}
+
+// --- Quest Factories ---
 
 export function makeQuest(overrides: Partial<Quest> = {}): Quest {
   const id = overrides.id ?? makeQuestId();

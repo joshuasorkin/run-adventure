@@ -18,6 +18,11 @@ export const questConfigSchema = z.object({
     .min(MIN_DISTANCE_METERS)
     .max(MAX_DISTANCE_METERS)
     .default(DEFAULT_MAX_DISTANCE_METERS),
+  maxRouteLength: z
+    .number()
+    .min(MIN_DISTANCE_METERS)
+    .max(MAX_DISTANCE_METERS)
+    .optional(),
   questGoal: z
     .string()
     .min(1)

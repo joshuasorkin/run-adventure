@@ -16,7 +16,8 @@
       "WebFetch(domain:nominatim.openstreetmap.org)",
       "Bash(curl:*)",
       "WebFetch(domain:foursquare.com)",
-      "WebFetch(domain:www.google.com)"
+      "WebFetch(domain:www.google.com)",
+      "Bash(flyctl secrets:*)"
     ]
   }
 }

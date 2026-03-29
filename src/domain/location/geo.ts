@@ -5,6 +5,9 @@
 
 import type { Coordinates } from "@/domain/location/location-sample";
 
+/** A function that returns distance in meters between two coordinates. */
+export type DistanceFn = (a: Coordinates, b: Coordinates) => number;
+
 const EARTH_RADIUS_METERS = 6_371_008.8;
 
 /** Convert degrees to radians. */

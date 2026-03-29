@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { planRoute, computeRouteDistance, isRouteWithinBudget } from "@/domain/quest/route-planner";
+import { planRoute, computeRouteDistance, isRouteWithinBudget, improveRoute2Opt } from "@/domain/quest/route-planner";
 import { makePlaceCandidate } from "@tests/fixtures/factories";
 import type { Coordinates } from "@/domain/location/location-sample";
 
@@ -77,5 +77,60 @@ describe("isRouteWithinBudget", () => {
   it("returns false when route exceeds budget", () => {
     const ordered = planRoute(START, [PLACE_A, PLACE_B, PLACE_C]);
     expect(isRouteWithinBudget(START, ordered, 10)).toBe(false);
+  });
+});
+
+describe("improveRoute2Opt", () => {
+  it("returns empty array for empty input", () => {
+    expect(improveRoute2Opt(START, [])).toEqual([]);
+  });
+
+  it("returns single place unchanged", () => {
+    const result = improveRoute2Opt(START, [PLACE_A]);
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe("Place A");
+  });
+
+  it("returns two places unchanged (nothing to swap)", () => {
+    const result = improveRoute2Opt(START, [PLACE_A, PLACE_B]);
+    expect(result).toHaveLength(2);
+  });
+
+  it("does not increase route distance", () => {
+    const ordered = planRoute(START, [PLACE_A, PLACE_B, PLACE_C]);
+    const improved = improveRoute2Opt(START, ordered);
+
+    const origDist = computeRouteDistance(START, ordered);
+    const improvedDist = computeRouteDistance(START, improved);
+
+    expect(improvedDist).toBeLessThanOrEqual(origDist);
+  });
+
+  it("improves a known-suboptimal ordering", () => {
+    // Deliberately put places in a zigzag: start → C → A → B
+    // which should be worse than start → A → B → C
+    const suboptimal = [PLACE_C, PLACE_A, PLACE_B];
+    const improved = improveRoute2Opt(START, suboptimal);
+
+    const origDist = computeRouteDistance(START, suboptimal);
+    const improvedDist = computeRouteDistance(START, improved);
+
+    expect(improvedDist).toBeLessThan(origDist);
+  });
+
+  it("does not mutate the input array", () => {
+    const input = [PLACE_C, PLACE_A, PLACE_B];
+    improveRoute2Opt(START, input);
+    expect(input[0].name).toBe("Place C");
+    expect(input[1].name).toBe("Place A");
+    expect(input[2].name).toBe("Place B");
+  });
+
+  it("preserves all places in the result", () => {
+    const input = [PLACE_C, PLACE_A, PLACE_B];
+    const result = improveRoute2Opt(START, input);
+
+    const names = result.map((p) => p.name).sort();
+    expect(names).toEqual(["Place A", "Place B", "Place C"]);
   });
 });

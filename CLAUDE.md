@@ -4,29 +4,35 @@
 Build and maintain this codebase as a production-grade location-based running adventure game.
 Prioritize correctness, safety, testability, and architecture integrity over speed.
 
-## Current sprint: Alpha dogfood (2026-03-21)
-Goal: Runnable alpha for a real run around Adams Point / Grand Lake tonight.
-Prove the game loop feels fun on foot. Engineering completeness is secondary.
+## Current milestone: Friends & family
+Goal: Dynamic quest generation from real places, deployable to Fly.io, testable by 3-5 people on their own phones.
 
-### In scope
-- Hardcoded quest chain with real Adams Point / Grand Lake POIs
+### What's working
+- Dynamic quest generation via two-phase LLM pipeline + Google Places API
 - Browser geolocation streaming to server
 - Server-side proximity detection (haversine + configurable radius)
-- Item auto-collection when within radius
+- Item auto-collection when within geofence radius
 - Quest leg advancement on collection
-- Minimal mobile-friendly UI: objective text, distance to target, inventory
-- Browser TTS (`speechSynthesis`) for hands-free announcements
+- Mobile-first UI: configure page (map picker, goal, distance, objective count) + run page (map, objective, distance overlay, inventory, progress)
+- Google Maps on both configure and run pages (`@vis.gl/react-google-maps`)
+- Browser TTS for hands-free announcements
+- Wake Lock API to prevent screen auto-lock during runs
 - In-memory server state (no database)
-- One integration test replaying a GPS trace through the quest chain
+- Deployed to Fly.io (`run-adventure.fly.dev`)
 
-### Deferred to post-alpha
+### In scope now
+- Fix bugs found during real-device testing
+- Session telemetry for reviewing tester runs
+- iOS Safari compatibility testing
+- Polish for handoff to testers
+
+### Deferred
 - Prisma / PostgreSQL / SQLite persistence
 - Playwright E2E tests
-- Full test coverage beyond domain unit tests + one integration test
-- Google Maps / OSM route generation and provider abstraction
-- Auth, error handling edge cases, polish
+- Auth, error handling edge cases
 - PWA offline support
 - Observability / structured logging beyond console
+- Native app wrapper for background GPS
 
 ## Operating rules
 - Read `architecture.md` before starting any substantial task.
@@ -36,7 +42,7 @@ Prove the game loop feels fun on foot. Engineering completeness is secondary.
 - Do not bypass schemas, tests, or typed contracts for convenience.
 - Ask: is this domain logic, application orchestration, infrastructure, or presentation?
 - Keep those layers separate.
-- docs/roadmap.md contains projected development phases. These are planning documents only. Do not implement roadmap items unless explicitly instructed. Do not proactively suggest working on future phases.
+- `docs/roadmap.md` contains projected development phases. These are planning documents only. Do not implement roadmap items unless explicitly instructed.
 
 ## Required documentation updates
 Update `architecture.md` whenever any of these change:
@@ -64,19 +70,19 @@ Update workflow specs whenever any user-visible or domain-visible behavior chang
 ## Testing policy
 ### Alpha milestone (complete)
 - Unit tests for core domain logic (geo, geofence, state machine)
-- One integration test replaying GPS trace through full quest chain
-- Manual dogfood test on a real run — core loop validated
+- One integration test replaying GPS trace through hardcoded quest chain
+- Manual dogfood test on a real run
 
 ### Friends & family milestone (current)
-- Integration test covering dynamic quest generation from real place data
-- Test that verifies Place API coordinates match expected venues
-- Session telemetry logging so we can review tester runs after the fact
-- Manual testing on at least one iOS device before handing out links
+- Unit tests: route planner, candidate scorer, subset selector, quest generator, quest config schema, place type mapping
+- Integration tests: dynamic quest generation with mocked two-phase LLM + Places API
+- Integration tests: error paths (no places, API errors, over-budget, reduced count)
+- Manual testing on real devices with live API keys
 
-### Post-alpha (deferred)
+### Deferred
 - Full integration tests for all API/application flows
-- Playwright coverage for user-visible flows
-- Comprehensive fixture-based simulation
+- Playwright E2E tests
+- Comprehensive simulation harness
 
 Before closing a task:
 - run relevant tests

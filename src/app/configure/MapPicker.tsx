@@ -1,7 +1,7 @@
 "use client";
 
 import { APIProvider, Map, AdvancedMarker } from "@vis.gl/react-google-maps";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 
 interface MapPickerProps {
   apiKey: string;
@@ -10,14 +10,33 @@ interface MapPickerProps {
 }
 
 export default function MapPicker({ apiKey, center, onChange }: MapPickerProps) {
+  const [markerPos, setMarkerPos] = useState({
+    lat: center.latitude,
+    lng: center.longitude,
+  });
+
+  const handleMove = useCallback(
+    (lat: number, lng: number) => {
+      setMarkerPos({ lat, lng });
+      onChange({ latitude: lat, longitude: lng });
+    },
+    [onChange],
+  );
+
   const handleDragEnd = useCallback(
     (e: google.maps.MapMouseEvent) => {
       const pos = e.latLng;
-      if (pos) {
-        onChange({ latitude: pos.lat(), longitude: pos.lng() });
-      }
+      if (pos) handleMove(pos.lat(), pos.lng());
     },
-    [onChange],
+    [handleMove],
+  );
+
+  const handleMapClick = useCallback(
+    (e: { detail: { latLng?: { lat: number; lng: number } | null } }) => {
+      const pos = e.detail.latLng;
+      if (pos) handleMove(pos.lat, pos.lng);
+    },
+    [handleMove],
   );
 
   return (
@@ -30,9 +49,10 @@ export default function MapPicker({ apiKey, center, onChange }: MapPickerProps) 
           disableDefaultUI={true}
           zoomControl={true}
           gestureHandling="greedy"
+          onClick={handleMapClick}
         >
           <AdvancedMarker
-            position={{ lat: center.latitude, lng: center.longitude }}
+            position={markerPos}
             draggable={true}
             onDragEnd={handleDragEnd}
           />

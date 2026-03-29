@@ -1,6 +1,7 @@
 /**
  * Integration test: dynamic quest generation with mocked LLM and Places API.
- * Verifies the full orchestration: LLM → places search → route plan → quest build.
+ * Verifies the full 6-step orchestration: theme plan → candidate pool → scoring →
+ * subset selection → routing → narrative generation → quest build.
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
@@ -9,35 +10,70 @@ import { resetState, getState } from "@/infrastructure/persistence/in-memory-sto
 import type { SessionId } from "@/domain/player/player-session";
 import type { QuestConfig } from "@/domain/quest/quest-config";
 
-// Mock the OpenAI quest planner
+// Mock the OpenAI quest planner — two-phase LLM calls
 vi.mock("@/infrastructure/providers/llm/openai-quest-planner", () => ({
-  generateQuestPlan: vi.fn().mockResolvedValue({
+  generateThemePlan: vi.fn().mockResolvedValue({
+    titleSeed: "The Wellness Patrol",
+    narrativePremise: "A mysterious force threatens the neighborhood.",
+    buckets: [
+      {
+        bucketId: "bucket-1",
+        placeTypes: ["pharmacy"],
+        narrativeHint: "acquire healing supplies",
+        thematicStrength: 0.9,
+      },
+      {
+        bucketId: "bucket-2",
+        placeTypes: ["park"],
+        narrativeHint: "commune with nature",
+        thematicStrength: 0.8,
+      },
+      {
+        bucketId: "bucket-3",
+        placeTypes: ["library"],
+        narrativeHint: "seek ancient knowledge",
+        thematicStrength: 0.7,
+      },
+      {
+        bucketId: "bucket-4",
+        placeTypes: ["cafe", "bakery"],
+        narrativeHint: "gather provisions",
+        thematicStrength: 0.5,
+      },
+    ],
+  }),
+  generateNarrative: vi.fn().mockResolvedValue({
     title: "The Wellness Patrol",
-    narrative: "A mysterious force threatens the neighborhood. Restore balance by visiting key locations.",
+    narrative: "Restore balance by visiting key locations in the neighborhood.",
     legs: [
       {
-        googlePlacesType: "pharmacy",
-        objectiveText: "Acquire healing supplies at the apothecary",
+        objectiveText: "Run to CVS Pharmacy and acquire healing supplies",
         itemName: "Healing Tonic",
         itemDescription: "A shimmering vial of restorative elixir.",
         itemRarity: "common",
       },
       {
-        googlePlacesType: "park",
-        objectiveText: "Commune with nature at the sacred grove",
+        objectiveText: "Commune with nature at Lakeside Park",
         itemName: "Grove Medallion",
         itemDescription: "A wooden medallion infused with forest energy.",
         itemRarity: "uncommon",
       },
       {
-        googlePlacesType: "library",
-        objectiveText: "Seek ancient knowledge at the hall of wisdom",
+        objectiveText: "Seek ancient knowledge at Oakland Public Library",
         itemName: "Scroll of Insight",
         itemDescription: "A glowing scroll with forgotten truths.",
         itemRarity: "rare",
       },
     ],
   }),
+  // Keep legacy export for type compatibility
+  generateQuestPlan: vi.fn(),
+}));
+
+// Mock the Google Routes provider — return empty matrix (falls back to haversine)
+vi.mock("@/infrastructure/providers/routing/google-routes-provider", () => ({
+  buildWalkingDistanceMatrix: vi.fn().mockResolvedValue(new Map()),
+  matrixDistanceFn: vi.fn(),
 }));
 
 // Mock the Google Places provider
@@ -47,6 +83,7 @@ vi.mock("@/infrastructure/providers/map/google-places-provider", () => {
   class MockGooglePlacesProvider {
     name = "google";
     constructor(_apiKey: string) {}
+    async reverseGeocode() { return "123 Test St, Oakland, CA"; }
     async findNearbyPlaces(query: { categories: string[] }) {
       const type = query.categories[0];
       const places: Record<string, unknown[]> = {
@@ -59,6 +96,18 @@ vi.mock("@/infrastructure/providers/map/google-places-provider", () => {
             category: "pharmacy",
             location: { latitude: 37.8095, longitude: -122.2510 },
             address: "123 Main St",
+            isAccessible: true,
+            isOutdoor: true,
+            radiusMeters: 35,
+          },
+          {
+            id: uuid(),
+            externalId: "gp-pharmacy-2",
+            providerSource: "google",
+            name: "Walgreens",
+            category: "pharmacy",
+            location: { latitude: 37.8090, longitude: -122.2505 },
+            address: "456 Oak Ave",
             isAccessible: true,
             isOutdoor: true,
             radiusMeters: 35,
@@ -92,6 +141,34 @@ vi.mock("@/infrastructure/providers/map/google-places-provider", () => {
             radiusMeters: 35,
           },
         ],
+        cafe: [
+          {
+            id: uuid(),
+            externalId: "gp-cafe-1",
+            providerSource: "google",
+            name: "Blue Bottle Coffee",
+            category: "cafe",
+            location: { latitude: 37.8100, longitude: -122.2520 },
+            address: "321 Lakeshore Ave",
+            isAccessible: true,
+            isOutdoor: true,
+            radiusMeters: 35,
+          },
+        ],
+        bakery: [
+          {
+            id: uuid(),
+            externalId: "gp-bakery-1",
+            providerSource: "google",
+            name: "Arizmendi Bakery",
+            category: "bakery",
+            location: { latitude: 37.8105, longitude: -122.2515 },
+            address: "654 Grand Ave",
+            isAccessible: true,
+            isOutdoor: true,
+            radiusMeters: 35,
+          },
+        ],
       };
       return places[type] ?? [];
     }
@@ -115,7 +192,7 @@ vi.mock("@/infrastructure/config/env", () => ({
   },
 }));
 
-describe("Dynamic quest generation", () => {
+describe("Dynamic quest generation (v2 — pool + select + narrativize)", () => {
   let sessionId: SessionId;
 
   beforeEach(() => {
@@ -126,7 +203,6 @@ describe("Dynamic quest generation", () => {
   });
 
   it("generates a quest with places from the mocked providers", async () => {
-    // Import after mocks are set up
     const { generateDynamicQuest } = await import("@/application/generate-quest");
 
     const config: QuestConfig = {
@@ -145,7 +221,8 @@ describe("Dynamic quest generation", () => {
     expect(result.quest.legs[0].status).toBe("active");
     expect(result.quest.legs[1].status).toBe("locked");
     expect(result.quest.legs[2].status).toBe("locked");
-    expect(result.placesFound).toBe(3);
+    expect(result.placesFound).toBeGreaterThan(0);
+    expect(result.routeDistanceMeters).toBeGreaterThan(0);
 
     // Quest is stored in state
     const state = getState();
@@ -153,10 +230,38 @@ describe("Dynamic quest generation", () => {
     expect(state.quest!.id).toBe(result.quest.id);
   });
 
+  it("uses narrative from the second LLM call (actual places)", async () => {
+    const { generateDynamicQuest } = await import("@/application/generate-quest");
+    const { generateNarrative } = await import(
+      "@/infrastructure/providers/llm/openai-quest-planner"
+    );
+
+    const config: QuestConfig = {
+      startLocation: { latitude: 37.8100, longitude: -122.2500 },
+      maxDistanceMeters: 3000,
+      questGoal: "city wellness sweep",
+      objectiveCount: 3,
+    };
+
+    await generateDynamicQuest(sessionId, config);
+
+    // Verify generateNarrative was called with actual place objects
+    expect(generateNarrative).toHaveBeenCalledTimes(1);
+    const narrativeCall = (generateNarrative as ReturnType<typeof vi.fn>).mock.calls[0];
+    const placesArg = narrativeCall[0];
+    expect(Array.isArray(placesArg)).toBe(true);
+    // 2 outbound + 1 home = 3 places
+    expect(placesArg.length).toBe(3);
+    // Each place should be a real PlaceCandidate with a name
+    expect(placesArg[0].name).toBeDefined();
+    // Last place should be the home/start location
+    expect(placesArg[placesArg.length - 1].externalId).toBe("home-start");
+  });
+
   it("generates a quest even when fewer places are found than requested", async () => {
     const { generateDynamicQuest } = await import("@/application/generate-quest");
 
-    // Request 5 objectives but only 3 place types will return results
+    // Request 5 objectives but only 4 buckets with places
     const config: QuestConfig = {
       startLocation: { latitude: 37.8100, longitude: -122.2500 },
       maxDistanceMeters: 5000,
@@ -166,8 +271,24 @@ describe("Dynamic quest generation", () => {
 
     const result = await generateDynamicQuest(sessionId, config);
 
-    // Should succeed with the 3 places it found
+    // Should succeed with however many places were found
     expect(result.quest.legs.length).toBeLessThanOrEqual(5);
     expect(result.quest.legs.length).toBeGreaterThan(0);
+  });
+
+  it("reports routeDistanceMeters in the result", async () => {
+    const { generateDynamicQuest } = await import("@/application/generate-quest");
+
+    const config: QuestConfig = {
+      startLocation: { latitude: 37.8100, longitude: -122.2500 },
+      maxDistanceMeters: 3000,
+      questGoal: "city wellness sweep",
+      objectiveCount: 3,
+    };
+
+    const result = await generateDynamicQuest(sessionId, config);
+
+    expect(typeof result.routeDistanceMeters).toBe("number");
+    expect(result.routeDistanceMeters).toBeGreaterThan(0);
   });
 });

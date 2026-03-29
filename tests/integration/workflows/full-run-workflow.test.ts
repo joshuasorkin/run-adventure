@@ -5,8 +5,9 @@
 
 import { describe, it, expect, beforeEach } from "vitest";
 import { startSession } from "@/application/start-session";
+import { createAlphaQuest } from "@/application/alpha-quest-chain";
 import { ingestLocation } from "@/application/ingest-location";
-import { getState, resetState } from "@/infrastructure/persistence/in-memory-store";
+import { getState, resetState, setQuest } from "@/infrastructure/persistence/in-memory-store";
 import type { SessionId } from "@/domain/player/player-session";
 import gpsTrace from "@tests/fixtures/adams-point/gps-trace.json";
 
@@ -17,6 +18,8 @@ describe("Full run workflow: Adams Point quest chain", () => {
     resetState();
     const result = startSession();
     sessionId = result.sessionId;
+    // Explicitly attach the hardcoded alpha quest for this test
+    setQuest(createAlphaQuest(sessionId));
   });
 
   it("completes all 4 legs when replaying the GPS trace", () => {

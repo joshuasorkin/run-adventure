@@ -5,6 +5,9 @@ import {
   DEFAULT_MAX_DISTANCE_METERS,
   DEFAULT_QUEST_GOAL,
   DEFAULT_OBJECTIVE_COUNT,
+  MIN_ROUTE_LENGTH_METERS,
+  MAX_ROUTE_LENGTH_METERS,
+  DEFAULT_ROUTE_LENGTH_METERS,
 } from "@/domain/quest/quest-config";
 
 const MapPicker = lazy(() => import("./MapPicker"));
@@ -35,6 +38,7 @@ export default function ConfigurePage() {
   const [maxDistanceMeters, setMaxDistanceMeters] = useState(
     DEFAULT_MAX_DISTANCE_METERS,
   );
+  const [maxRouteLength, setMaxRouteLength] = useState(DEFAULT_ROUTE_LENGTH_METERS);
   const [questGoal, setQuestGoal] = useState(DEFAULT_QUEST_GOAL);
   const [objectiveCount, setObjectiveCount] = useState(DEFAULT_OBJECTIVE_COUNT);
   const [generating, setGenerating] = useState(false);
@@ -122,6 +126,7 @@ export default function ConfigurePage() {
           sessionId,
           startLocation,
           maxDistanceMeters,
+          maxRouteLength,
           questGoal,
           objectiveCount,
         }),
@@ -222,6 +227,30 @@ export default function ConfigurePage() {
             </button>
           ))}
         </div>
+      </section>
+
+      {/* Max Route Length */}
+      <section className="bg-zinc-900 rounded-2xl p-4">
+        <label className="text-[var(--muted)] text-xs uppercase tracking-wide block mb-2">
+          Max Route Length
+        </label>
+        <div className="flex items-center gap-3">
+          <input
+            type="range"
+            min={MIN_ROUTE_LENGTH_METERS}
+            max={MAX_ROUTE_LENGTH_METERS}
+            step={1609}
+            value={maxRouteLength}
+            onChange={(e) => setMaxRouteLength(Number(e.target.value))}
+            className="flex-1 accent-[var(--accent)]"
+          />
+          <span className="text-lg font-bold tabular-nums w-12 text-right">
+            {(maxRouteLength / 1609).toFixed(0)} mi
+          </span>
+        </div>
+        <p className="text-[var(--muted)] text-xs mt-1">
+          Total walking distance budget for the entire route.
+        </p>
       </section>
 
       {/* Quest Goal */}

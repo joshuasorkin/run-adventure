@@ -97,7 +97,58 @@ export class GooglePlacesProvider implements MapProvider {
   }
 
   async reverseGeocode(location: Coordinates): Promise<string | null> {
-    // Not needed for quest generation — return null
+    // Try up to 2 times (initial + 1 retry) to handle transient failures
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const res = await fetch(
+          `https://maps.googleapis.com/maps/api/geocode/json?latlng=${location.latitude},${location.longitude}&result_type=street_address|route&key=${this.apiKey}`,
+        );
+        if (!res.ok) {
+          console.warn(`[reverse-geocode] HTTP ${res.status}: ${await res.text().catch(() => "")}`);
+          continue;
+        }
+
+        const data = await res.json();
+        if (data.status === "ZERO_RESULTS" && attempt === 0) {
+          // Retry without result_type filter for less precise results
+          console.log("[reverse-geocode] No street_address results, retrying without filter...");
+          break; // Fall through to unfiltered retry below
+        }
+        if (data.status !== "OK") {
+          console.warn(`[reverse-geocode] API status: ${data.status}, error: ${data.error_message ?? "none"}`);
+          continue;
+        }
+
+        const result = data.results?.[0];
+        if (!result) {
+          console.warn("[reverse-geocode] No results returned");
+          continue;
+        }
+
+        console.log(`[reverse-geocode] Resolved to: ${result.formatted_address}`);
+        return result.formatted_address ?? null;
+      } catch (err) {
+        console.warn(`[reverse-geocode] Attempt ${attempt + 1} failed:`, err);
+      }
+    }
+
+    // Final fallback: try without result_type filter
+    try {
+      const res = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${location.latitude},${location.longitude}&key=${this.apiKey}`,
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (data.status === "OK" && data.results?.[0]) {
+          console.log(`[reverse-geocode] Fallback resolved to: ${data.results[0].formatted_address}`);
+          return data.results[0].formatted_address ?? null;
+        }
+      }
+    } catch {
+      // Give up
+    }
+
+    console.warn("[reverse-geocode] All attempts failed");
     return null;
   }
 

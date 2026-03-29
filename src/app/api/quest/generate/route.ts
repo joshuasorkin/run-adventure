@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { sessionId, startLocation, maxDistanceMeters, questGoal, objectiveCount } = parsed.data;
+  const { sessionId, startLocation, maxDistanceMeters, maxRouteLength, questGoal, objectiveCount } = parsed.data;
 
   // Verify session exists
   const state = getState();
@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
     const result = await generateDynamicQuest(sessionId as SessionId, {
       startLocation,
       maxDistanceMeters,
+      maxRouteLength,
       questGoal,
       objectiveCount,
     });
@@ -50,6 +51,8 @@ export async function POST(request: NextRequest) {
         firstObjective: firstLeg?.objective.description ?? null,
         legCount: quest.legs.length,
         placesFound: result.placesFound,
+        routeDistanceMeters: result.routeDistanceMeters,
+        routeBudgetWarning: result.routeBudgetWarning ?? null,
       },
       { status: 201 },
     );
