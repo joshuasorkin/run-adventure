@@ -241,10 +241,10 @@ export async function generateNarrative(
       if (i === lastIdx) {
         const hasNamedPlace = p.name !== p.address && p.address != null;
         if (hasNamedPlace) {
-          return `${i + 1}. RETURN HOME — named place: "${p.name}", street address: "${p.address}"`;
+          return `${i + 1}. RETURN HOME — use this real place name: "${p.name}"`;
         }
         const addr = p.address ?? p.name;
-        return `${i + 1}. RETURN HOME — street address: "${addr}"`;
+        return `${i + 1}. RETURN HOME — invent a fictional place name from this address: "${addr}" (DO NOT use the raw address as the place name)`;
       }
       return `${i + 1}. "${p.name}" (${p.category})`;
     })
@@ -278,16 +278,19 @@ Rules:
 - Increase rarity as the quest progresses: early stops common/uncommon, later stops rare/legendary.
 - The narrative should read as a coherent story about the quest goal, with each stop advancing toward resolution.
 - THE FINAL STOP is always the player's starting location (marked "RETURN HOME" with its street address). It must provide NARRATIVE RESOLUTION — the quest goal is achieved here. The player returns home with all gathered clues/components and completes the quest.
-- For the final stop, you must invent a dramatic fictional location name. There are two cases:
-  A) If the final stop has a NAMED PLACE (e.g., "KP Asian Market"), reimagine that business name as a quest location. Examples:
-    - "KP Asian Market" + goal "Delete the Rogue Malware" → "The KP Data Exchange" or "KP Command Hub"
-    - "Peet's Coffee" + goal "Find my pants" → "Peet's Stitching Parlor" or "The Peet's Vault"
-  B) If the final stop has only a STREET ADDRESS, transform the street name and/or number into a quest location. The fictional name must NOT contain the words "Street", "Ave", "Blvd", "St", or any address format. Extract the interesting parts (name, number) and use them creatively. Examples:
-    - Address "702 43rd St" + goal "Retrieve the Stolen Quantum Microchip" → "Temple of the 702 Circuits" or "The 43rd Parallel Command Center"
-    - Address "2370 Telegraph Ave" + goal "Delete the Rogue Malware" → "The Telegraphic Cyber Fortress" or "Station 2370"
-    - Address "360 Adams Ave" + goal "Boggle the Beagle's Bugle" → "Adam's Lair" or "The 360 Degree Vista"
-    - Address "88 Pine St" + goal "Rescue the prince" → "The Pine Citadel" or "Tower of 88 Pines"
-  In BOTH cases: the name must sound like a place in a story, NOT an address. "Cyber Fortress of 2370 Telegraph Ave" is WRONG (contains "Ave"). "The Telegraphic Cyber Fortress" is RIGHT.
+- For the final stop's location name in the objectiveText, there are two cases:
+  A) If the final stop has a NAMED PLACE, use its real name directly. Do NOT reimagine it. Examples:
+    - "KP Asian Market" → "Return to KP Asian Market and..."
+    - "Peet's Coffee" → "Return to Peet's Coffee and..."
+  B) If the final stop has only a STREET ADDRESS (no named place), invent a fictional location name derived from the STREET NAME or NUMBER — NOT from the quest goal. The player needs to recognize the real address from the fictional name. The fictional name must NOT contain "Street", "Ave", "Blvd", "St", or any address format. Examples:
+    - Address "702 43rd St" → "Temple of the 702" or "The 43rd Parallel Command Center" (derived from "702" and "43rd")
+    - Address "2370 Telegraph Ave" → "The Telegraphic Fortress" or "Station 2370" (derived from "Telegraph" and "2370")
+    - Address "131 La Salle Ave" → "The La Salle Sanctum" or "Fort 131" (derived from "La Salle" and "131")
+    - Address "15 Santa Ray Ave" → "Santa Ray Sanctuary" (derived from "Santa Ray")
+    - Address "88 Pine St" → "The Pine Citadel" or "Tower of 88 Pines" (derived from "Pine" and "88")
+    WRONG: "Valor's Sanctuary" for address "131 La Salle Ave" — this comes from the quest goal, not the address. The player cannot find "La Salle" in the name.
+    WRONG: "Cyber Fortress of 2370 Telegraph Ave" — contains "Ave".
+    RIGHT: "The La Salle Sanctum" — derived from the street name, recognizable to the player.
 - Generate exactly ${places.length} legs, one per place, in the order given.`,
       },
       {
