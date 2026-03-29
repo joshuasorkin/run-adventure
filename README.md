@@ -91,24 +91,19 @@ fly secrets set OPENAI_API_KEY=sk-...
 fly secrets set GOOGLE_MAPS_API_KEY=AIza...
 ```
 
-### 4. Deploy
+### 4. Add keys to your shell profile
 
-The Google Maps client key must be passed as a build arg since Next.js inlines `NEXT_PUBLIC_*` variables at build time:
-
-```bash
-fly deploy --build-arg NEXT_PUBLIC_GOOGLE_MAPS_KEY=AIza...
-```
-
-To avoid typing the key every deploy, add it to your shell profile:
+The Google Maps client key must be passed as a build arg because Next.js inlines `NEXT_PUBLIC_*` variables at build time. Run the setup script to add your keys to your shell profile so deploys pick them up automatically:
 
 ```bash
 bash scripts/setup-env.sh
+source ~/.bashrc  # or ~/.zshrc — the script will tell you which file it updated
 ```
 
-Then deploy with:
+### 5. Deploy
 
 ```bash
-fly deploy --build-arg NEXT_PUBLIC_GOOGLE_MAPS_KEY=$NEXT_PUBLIC_GOOGLE_MAPS_KEY
+npm run deploy
 ```
 
 ## Environment variables
