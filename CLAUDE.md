@@ -1,5 +1,35 @@
 # CLAUDE.md
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Commands
+
+```bash
+npm run dev              # Start Next.js dev server (port 3000)
+npm run build            # Production build
+npm run lint             # ESLint
+npm run typecheck        # TypeScript strict mode check (tsc --noEmit)
+npm test                 # Run all tests once (vitest)
+npm run test:watch       # Watch mode
+npm run test:coverage    # Coverage report (v8)
+```
+
+Run a single test file:
+```bash
+npx vitest run tests/unit/domain/geo.test.ts
+```
+
+Run tests matching a pattern:
+```bash
+npx vitest run -t "proximity"
+```
+
+Environment setup (fixture mode needs no API keys):
+```bash
+cp .env.example .env
+npm install
+```
+
 ## Mission
 Build and maintain this codebase as a production-grade location-based running adventure game.
 Prioritize correctness, safety, testability, and architecture integrity over speed.
