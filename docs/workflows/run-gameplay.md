@@ -21,16 +21,18 @@ Run page mounts and reads sessionId from sessionStorage.
 7. Server runs velocity check against last known position (rejects teleports)
 8. Server persists the location sample
 9. Server checks proximity of the new position to the active quest leg's target (haversine distance vs. geofence radius)
-10. **If within geofence**: server runs the progression sequence:
+10. **Approach narration check** (before geofence): if the active leg has `approachNarration` lines, the server computes which 50m distance tier the runner is in. If they've crossed into a new tier (closer to target) and at least 15 seconds have passed since the last narration, the server includes the narration text in the response. If the runner moves away (wrong turn), the tier index is silently decremented so re-approaching replays the appropriate tier.
+11. **If within geofence**: server runs the progression sequence:
     - REACH_TARGET → COLLECT_ITEM → add to inventory → LEG_COMPLETED
     - If more legs remain: ACTIVATE_LEG (next leg)
     - If all legs done: QUEST_COMPLETED
-11. Server returns `{ processed, rejected, questUpdate, events }`
-12. Client checks for `questUpdate` — if present:
+12. Server returns `{ processed, rejected, questUpdate, approachNarration, events }`
+13. Client checks for `approachNarration` — if present and TTS enabled, speaks the narration text and adds to event log
+14. Client checks for `questUpdate` — if present:
     - Announces collection/next objective via TTS
     - Adds to event log
-13. Client refreshes quest state (GET `/api/quest`) and inventory (GET `/api/inventory`)
-14. Client updates UI: objective text, distance overlay, progress bar, inventory list
+15. Client refreshes quest state (GET `/api/quest`) and inventory (GET `/api/inventory`)
+16. Client updates UI: objective text, distance overlay, progress bar, inventory list
 
 ## Map behavior
 - Google Map shows player position (blue dot) and current target (red pin)

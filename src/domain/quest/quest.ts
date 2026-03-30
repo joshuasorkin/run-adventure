@@ -28,6 +28,7 @@ export interface QuestLeg {
   readonly status: LegStatus;
   readonly objective: Objective;
   readonly rewardItem: InventoryItem;
+  readonly approachNarration: readonly string[];
   readonly reachedAt: Date | null;
   readonly completedAt: Date | null;
 }

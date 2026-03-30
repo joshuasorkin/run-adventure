@@ -87,6 +87,7 @@ export async function POST(request: NextRequest) {
               description: leg.rewardItem.description,
               rarity: leg.rewardItem.rarity,
             },
+            approachNarration: leg.approachNarration,
           })),
         });
       } catch (err) {

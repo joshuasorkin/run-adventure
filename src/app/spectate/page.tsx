@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback, Suspense } from "react";
+import { useEffect, useRef, useState, useCallback, Suspense, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import { APIProvider, Map, AdvancedMarker, useMap } from "@vis.gl/react-google-maps";
 import MapPolyline from "../components/MapPolyline";
@@ -55,6 +55,15 @@ function SpectateContent() {
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Cheer messaging state
+  const [senderName, setSenderName] = useState(() =>
+    typeof window !== "undefined" ? localStorage.getItem("cheerName") ?? "" : "",
+  );
+  const [editingName, setEditingName] = useState(false);
+  const [messageText, setMessageText] = useState("");
+  const [sendStatus, setSendStatus] = useState<"idle" | "sending" | "sent" | "rate-limited" | "error">("idle");
+  const sendTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
+
   const trail: google.maps.LatLngLiteral[] = (data?.trail ?? []).map((p) => ({
     lat: p.latitude,
     lng: p.longitude,
@@ -88,6 +97,41 @@ function SpectateContent() {
     const interval = setInterval(fetchData, POLL_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [fetchData]);
+
+  const handleSendCheer = useCallback(
+    async (e: FormEvent) => {
+      e.preventDefault();
+      if (!sessionParam || !senderName.trim() || !messageText.trim()) return;
+
+      setSendStatus("sending");
+      try {
+        const res = await fetch("/api/cheer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId: sessionParam,
+            senderName: senderName.trim(),
+            text: messageText.trim(),
+          }),
+        });
+        if (res.status === 429) {
+          setSendStatus("rate-limited");
+        } else if (!res.ok) {
+          setSendStatus("error");
+        } else {
+          setSendStatus("sent");
+          setMessageText("");
+          localStorage.setItem("cheerName", senderName.trim());
+        }
+      } catch {
+        setSendStatus("error");
+      }
+
+      if (sendTimeoutRef.current) clearTimeout(sendTimeoutRef.current);
+      sendTimeoutRef.current = setTimeout(() => setSendStatus("idle"), 3000);
+    },
+    [sessionParam, senderName, messageText],
+  );
 
   if (error && !data) {
     return (
@@ -287,6 +331,82 @@ function SpectateContent() {
               : `${(data.totalDistanceMeters / 1000).toFixed(2)}km`}
           </p>
           <p className="text-[var(--muted)] text-sm">distance traveled</p>
+        </section>
+      )}
+
+      {/* Send Cheer */}
+      {!questCompleted && (
+        <section className="bg-zinc-900 rounded-2xl p-4">
+          <p className="text-[var(--muted)] text-xs uppercase tracking-wide mb-2">
+            Send a Cheer
+          </p>
+
+          {/* Sender name */}
+          {senderName && !editingName ? (
+            <div className="flex items-center gap-2 mb-2">
+              <p className="text-sm text-[var(--muted)]">
+                Cheering as <span className="font-semibold text-white">{senderName}</span>
+              </p>
+              <button
+                type="button"
+                onClick={() => setEditingName(true)}
+                className="text-xs text-[var(--accent)] underline"
+              >
+                change
+              </button>
+            </div>
+          ) : (
+            <input
+              type="text"
+              placeholder="Your name"
+              maxLength={30}
+              value={senderName}
+              onChange={(e) => setSenderName(e.target.value)}
+              onBlur={() => {
+                if (senderName.trim()) setEditingName(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && senderName.trim()) setEditingName(false);
+              }}
+              autoFocus={editingName}
+              className="w-full mb-2 px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-sm focus:outline-none focus:border-[var(--accent)]"
+            />
+          )}
+
+          {/* Message + Send */}
+          <form onSubmit={handleSendCheer} className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Send encouragement..."
+              maxLength={200}
+              value={messageText}
+              onChange={(e) => setMessageText(e.target.value)}
+              disabled={sendStatus === "sending"}
+              className="flex-1 px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-sm focus:outline-none focus:border-[var(--accent)] disabled:opacity-50"
+            />
+            <button
+              type="submit"
+              disabled={
+                sendStatus === "sending" ||
+                !senderName.trim() ||
+                !messageText.trim()
+              }
+              className="px-4 py-2 rounded-lg bg-[var(--accent)] text-black text-sm font-semibold disabled:opacity-50"
+            >
+              Send
+            </button>
+          </form>
+
+          {/* Feedback */}
+          {sendStatus === "sent" && (
+            <p className="text-xs text-[var(--accent)] mt-1">Sent!</p>
+          )}
+          {sendStatus === "rate-limited" && (
+            <p className="text-xs text-[var(--danger)] mt-1">Too fast! Wait a moment.</p>
+          )}
+          {sendStatus === "error" && (
+            <p className="text-xs text-[var(--danger)] mt-1">Failed to send. Try again.</p>
+          )}
         </section>
       )}
     </main>

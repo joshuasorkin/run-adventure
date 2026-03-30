@@ -130,6 +130,7 @@ export default function RunPage() {
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
   const lastAnnouncedLegRef = useRef<number>(-1);
   const lastSentRef = useRef<{ lat: number; lng: number } | null>(null);
+  const lastCheerIdRef = useRef<string | null>(null);
 
   /** Minimum meters of movement before sending a new location to the server. */
   const MIN_MOVE_METERS = 5;
@@ -258,6 +259,12 @@ export default function RunPage() {
           handleQuestUpdate(update);
         }
 
+        // Approach narration from server
+        if (data.approachNarration && ttsEnabled) {
+          addLog(data.approachNarration);
+          speak(data.approachNarration);
+        }
+
         // Refresh quest state and inventory
         await Promise.all([fetchQuestState(), fetchInventory()]);
       } catch (err) {
@@ -289,6 +296,35 @@ export default function RunPage() {
     [addLog, ttsEnabled],
   );
 
+  // Poll for cheer messages from spectators
+  const fetchCheers = useCallback(async () => {
+    try {
+      const afterParam = lastCheerIdRef.current
+        ? `?after=${lastCheerIdRef.current}`
+        : "";
+      const res = await fetch(`/api/cheer${afterParam}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const messages: { id: string; senderName: string; text: string }[] =
+        data.messages ?? [];
+      for (const msg of messages) {
+        const logMsg = `${msg.senderName} says: "${msg.text}"`;
+        addLog(logMsg);
+        if (ttsEnabled) speak(`${msg.senderName} says: '${msg.text}'`);
+        lastCheerIdRef.current = msg.id;
+      }
+      // Persist cursor so page reload doesn't re-announce
+      if (messages.length > 0 && sessionId) {
+        sessionStorage.setItem(
+          `lastCheerId:${sessionId}`,
+          lastCheerIdRef.current!,
+        );
+      }
+    } catch {
+      // Silently retry on next poll
+    }
+  }, [addLog, ttsEnabled, sessionId]);
+
   // Initialize session and GPS on mount
   useEffect(() => {
     const sid = sessionStorage.getItem("sessionId");
@@ -297,6 +333,9 @@ export default function RunPage() {
       return;
     }
     setSessionId(sid);
+    // Restore cheer cursor so page reload doesn't re-announce old cheers
+    const savedCheerId = sessionStorage.getItem(`lastCheerId:${sid}`);
+    if (savedCheerId) lastCheerIdRef.current = savedCheerId;
   }, []);
 
   // Start GPS watching once we have a session
@@ -340,6 +379,9 @@ export default function RunPage() {
     watchIdRef.current = watchId;
     addLog("GPS tracking started");
 
+    // Poll for spectator cheer messages every 3 seconds
+    const cheerInterval = setInterval(fetchCheers, 3000);
+
     // Request wake lock to keep screen on during the run
     const requestWakeLock = () => {
       if ("wakeLock" in navigator && !wakeLockRef.current) {
@@ -368,9 +410,10 @@ export default function RunPage() {
         wakeLockRef.current.release();
         wakeLockRef.current = null;
       }
+      clearInterval(cheerInterval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [sessionId, sendLocation, fetchQuestState, fetchInventory, addLog, ttsEnabled]);
+  }, [sessionId, sendLocation, fetchQuestState, fetchInventory, fetchCheers, addLog, ttsEnabled]);
 
   if (error) {
     return (

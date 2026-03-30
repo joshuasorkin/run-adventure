@@ -234,6 +234,7 @@ export async function generateDynamicQuest(
     config.questGoal,
     env.OPENAI_API_KEY,
     0.3,
+    legDistances,
   );
 
   // Step 8: Build quest
@@ -252,6 +253,7 @@ export async function generateDynamicQuest(
         rarity: leg?.itemRarity ?? "common",
         iconKey: (leg?.itemName ?? "mystery").toLowerCase().replace(/\s+/g, "-"),
       },
+      approachNarration: leg?.approachNarration ?? [],
     };
   });
 

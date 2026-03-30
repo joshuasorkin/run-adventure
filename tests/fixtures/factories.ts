@@ -132,6 +132,7 @@ export function makeQuestLeg(overrides: Partial<QuestLeg> = {}): QuestLeg {
       geofenceRadiusMeters: 30,
     },
     rewardItem: makeItem(),
+    approachNarration: [],
     reachedAt: null,
     completedAt: null,
     ...overrides,

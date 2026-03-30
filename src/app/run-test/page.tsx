@@ -46,6 +46,7 @@ interface LegResult {
     description: string;
     rarity: string;
   };
+  approachNarration: string[];
 }
 
 interface QuestResult {
@@ -522,6 +523,26 @@ export default function RunTestPage() {
                 <span className="text-xs text-[var(--muted)]">({leg.rewardItem.rarity})</span>
               </div>
               <p className="text-xs text-[var(--muted)] mt-0.5">{leg.rewardItem.description}</p>
+
+              {/* Approach Narration */}
+              {leg.approachNarration.length > 0 && (
+                <div className="border-t border-zinc-800 pt-2 mt-3">
+                  <p className="text-xs font-semibold text-[var(--muted)] mb-1">
+                    Approach Narration ({leg.approachNarration.length} tiers)
+                  </p>
+                  <div className="flex flex-col gap-1">
+                    {leg.approachNarration.map((line, j) => {
+                      const tierDistance = (leg.approachNarration.length - j) * 50;
+                      return (
+                        <p key={j} className="text-xs text-zinc-400">
+                          <span className="text-[var(--muted)] tabular-nums">{tierDistance}m</span>
+                          {" "}{line}
+                        </p>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
 

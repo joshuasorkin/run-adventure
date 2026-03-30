@@ -12,12 +12,20 @@ import type { Quest, QuestId } from "@/domain/quest/quest";
 import type { InventoryItem, ItemId } from "@/domain/inventory/inventory-item";
 import type { PlaceId } from "@/domain/place/place-candidate";
 import type { GameEvent, IdempotencyKey } from "@/domain/event/game-event";
+import type { CheerMessage, CheerMessageId } from "@/domain/cheer/cheer-message";
 
 export interface InventoryRecord {
   readonly item: InventoryItem;
   readonly quantity: number;
   readonly collectedAtPlaceId: PlaceId;
   readonly collectedAt: Date;
+}
+
+export interface ApproachState {
+  /** Index into QuestLeg.approachNarration last announced. -1 = none yet. */
+  lastAnnouncedTierIndex: number;
+  /** Timestamp of last approach narration, for pacing. */
+  lastNarrationTime: Date | null;
 }
 
 export interface GameState {
@@ -27,6 +35,9 @@ export interface GameState {
   locationHistory: LocationSample[];
   events: GameEvent[];
   processedKeys: Set<IdempotencyKey>;
+  cheerMessages: CheerMessage[];
+  /** Per-leg approach narration tracking, keyed by leg sequenceIndex. */
+  approachTracking: Map<number, ApproachState>;
 }
 
 function createEmptyState(): GameState {
@@ -37,6 +48,8 @@ function createEmptyState(): GameState {
     locationHistory: [],
     events: [],
     processedKeys: new Set(),
+    cheerMessages: [],
+    approachTracking: new Map(),
   };
 }
 
@@ -94,4 +107,23 @@ export function hasProcessedKey(key: IdempotencyKey): boolean {
 
 export function markKeyProcessed(key: IdempotencyKey): void {
   state.processedKeys.add(key);
+}
+
+export function addCheerMessage(message: CheerMessage): void {
+  state.cheerMessages.push(message);
+}
+
+export function getApproachState(legIndex: number): ApproachState {
+  return state.approachTracking.get(legIndex) ?? { lastAnnouncedTierIndex: -1, lastNarrationTime: null };
+}
+
+export function setApproachState(legIndex: number, approachState: ApproachState): void {
+  state.approachTracking.set(legIndex, approachState);
+}
+
+export function getCheerMessagesSince(afterId: CheerMessageId | null): CheerMessage[] {
+  if (afterId === null) return [...state.cheerMessages];
+  const idx = state.cheerMessages.findIndex((m) => m.id === afterId);
+  if (idx === -1) return [...state.cheerMessages];
+  return state.cheerMessages.slice(idx + 1);
 }

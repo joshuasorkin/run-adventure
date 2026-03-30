@@ -87,11 +87,11 @@ Coordinates use cases:
 - Mobile-first React UI
 - Quest configuration page (`/configure`) with Google Maps picker
 - Run page (`/run`) with GPS tracking, GPS trail polyline, progress, inventory, TTS, share button
-- Spectator page (`/spectate`) — read-only live view of a runner's progress via polling
+- Spectator page (`/spectate`) — read-only live view of a runner's progress via polling, with cheer messaging (spectator → runner TTS)
 - Architecture diagram page (`/architecture`) with Mermaid-rendered system diagrams
 - Shared components: `MapPolyline` (imperative `google.maps.Polyline` wrapper via `useMap()`)
 - API route handlers (Zod-validated)
-- Browser TTS integration (`speechSynthesis` API)
+- Browser TTS integration (`speechSynthesis` API) — quest events, approach narration, spectator cheers
 
 ## Persistence: alpha approach
 Server-side in-memory store holding active session, quest state, and inventory.
@@ -130,6 +130,7 @@ Zod schemas at every API boundary:
 - `src/validation/quest-schemas.ts` — quest state response
 - `src/validation/quest-generation-schemas.ts` — quest generation config (includes optional `maxRouteLength`)
 - `src/validation/spectate-schemas.ts` — spectator API response (session, quest, trail, inventory)
+- `src/validation/cheer-schemas.ts` — cheer message send/receive (spectator → runner messaging)
 - `src/validation/common-schemas.ts` — coordinates, uuid, pagination
 
 ## Workflows

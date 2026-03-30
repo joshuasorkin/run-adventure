@@ -25,6 +25,8 @@ import {
   addEvent,
   hasProcessedKey,
   markKeyProcessed,
+  getApproachState,
+  setApproachState,
 } from "@/infrastructure/persistence/in-memory-store";
 
 export interface LocationInput {
@@ -41,6 +43,7 @@ export interface IngestResult {
   readonly processed: number;
   readonly rejected: number;
   readonly questUpdate: QuestUpdate | null;
+  readonly approachNarration: string | null;
   readonly events: readonly GameEvent[];
 }
 
@@ -52,6 +55,20 @@ export interface QuestUpdate {
   readonly questCompleted: boolean;
 }
 
+/** Minimum seconds between approach narration announcements. */
+const MIN_NARRATION_GAP_MS = 15_000;
+
+/**
+ * Given distance to target and total narration tiers, compute the current tier index.
+ * Returns -1 if the runner is beyond all tiers (too far away).
+ * Index 0 = farthest tier, totalTiers-1 = closest tier (within 50-100m).
+ */
+export function computeApproachTier(distanceMeters: number, totalTiers: number): number {
+  if (totalTiers <= 0) return -1;
+  const tier = totalTiers - 1 - Math.floor(distanceMeters / 50);
+  return Math.max(-1, Math.min(tier, totalTiers - 1));
+}
+
 export function ingestLocation(
   sessionId: SessionId,
   points: readonly LocationInput[],
@@ -59,7 +76,7 @@ export function ingestLocation(
 ): IngestResult {
   // 1. Idempotency check
   if (hasProcessedKey(idempotencyKey)) {
-    return { processed: 0, rejected: 0, questUpdate: null, events: [] };
+    return { processed: 0, rejected: 0, questUpdate: null, approachNarration: null, events: [] };
   }
 
   const state = getState();
@@ -71,6 +88,7 @@ export function ingestLocation(
   let rejected = 0;
   const emittedEvents: GameEvent[] = [];
   let questUpdate: QuestUpdate | null = null;
+  let approachNarration: string | null = null;
 
   // 2. Process each GPS point
   for (const point of points) {
@@ -116,6 +134,35 @@ export function ingestLocation(
 
         const proximity = checkProximity(playerCoords, targetCoords, radius);
 
+        // Approach narration: fire when crossing a 50m tier boundary
+        if (!proximity.isWithinGeofence && leg.approachNarration.length > 0) {
+          const totalTiers = leg.approachNarration.length;
+          const currentTier = computeApproachTier(proximity.distanceMeters, totalTiers);
+          const approach = getApproachState(state.quest.currentLegIndex);
+
+          if (currentTier !== approach.lastAnnouncedTierIndex) {
+            const pointTime = new Date(point.timestamp);
+            const timeSinceLast = approach.lastNarrationTime
+              ? pointTime.getTime() - approach.lastNarrationTime.getTime()
+              : Infinity;
+
+            if (currentTier > approach.lastAnnouncedTierIndex && currentTier >= 0 && timeSinceLast >= MIN_NARRATION_GAP_MS) {
+              // Moving closer: announce the new (closest reached) tier
+              approachNarration = leg.approachNarration[currentTier];
+              setApproachState(state.quest.currentLegIndex, {
+                lastAnnouncedTierIndex: currentTier,
+                lastNarrationTime: pointTime,
+              });
+            } else if (currentTier < approach.lastAnnouncedTierIndex) {
+              // Wrong turn / moved away: silently update tier so re-approach triggers again
+              setApproachState(state.quest.currentLegIndex, {
+                lastAnnouncedTierIndex: currentTier,
+                lastNarrationTime: approach.lastNarrationTime,
+              });
+            }
+          }
+        }
+
         if (proximity.isWithinGeofence) {
           // 4. Run the full progression: reach → collect → advance
           questUpdate = progressQuest(state.quest, emittedEvents);
@@ -132,7 +179,7 @@ export function ingestLocation(
     addEvent(event);
   }
 
-  return { processed, rejected, questUpdate, events: emittedEvents };
+  return { processed, rejected, questUpdate, approachNarration, events: emittedEvents };
 }
 
 /**

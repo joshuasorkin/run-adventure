@@ -36,6 +36,26 @@ uses a singleton in-memory store, so the spectator sees the one active session r
 - Live/completed status indicator
 - GPS point count
 
+## Cheer Messaging (spectator → runner)
+
+Spectators can send short encouragement messages to the runner. Messages are announced
+via TTS on the runner's device.
+
+### Flow
+1. Spectator enters their name (persisted to localStorage) and types a message (max 200 chars).
+2. Spectator submits the form → `POST /api/cheer` with `{ sessionId, senderName, text }`.
+3. Server validates the request (Zod schema), checks rate limit (5 msgs / 30s per sender),
+   creates a `CheerMessage`, and stores it in the in-memory store.
+4. Runner's page polls `GET /api/cheer?after=<lastSeenId>` every 3 seconds.
+5. New messages are announced via TTS: `"[name] says: '[text]'"` and added to the event log.
+6. The last-seen cursor is persisted to `sessionStorage` so a page reload doesn't re-announce.
+
+### Abuse prevention
+- Sender name: 1–30 chars (trimmed)
+- Message text: 1–200 chars (trimmed)
+- Rate limit: 5 messages per 30 seconds per sender name per session
+- HTTP 429 returned when rate-limited
+
 ## Completion
 When quest status is `completed`, the page shows a completion banner and the full
 trail with all objective markers.

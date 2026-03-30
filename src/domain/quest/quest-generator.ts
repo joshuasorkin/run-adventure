@@ -23,6 +23,7 @@ export interface QuestLegTemplate {
   readonly place: PlaceCandidate;
   readonly objectiveText: string;
   readonly rewardItem: InventoryItem;
+  readonly approachNarration?: readonly string[];
 }
 
 /**
@@ -52,6 +53,7 @@ export function generateQuest(
       geofenceRadiusMeters: template.place.radiusMeters,
     },
     rewardItem: template.rewardItem,
+    approachNarration: template.approachNarration ?? [],
     reachedAt: null,
     completedAt: null,
   }));

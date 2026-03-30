@@ -159,6 +159,7 @@ export interface NarrativeResponse {
     readonly itemName: string;
     readonly itemDescription: string;
     readonly itemRarity: ItemRarity;
+    readonly approachNarration: string[];
   }[];
 }
 
@@ -167,6 +168,7 @@ const narrativeLegSchema = z.object({
   itemName: z.string(),
   itemDescription: z.string(),
   itemRarity: z.enum(["common", "uncommon", "rare", "legendary"]),
+  approachNarration: z.array(z.string()),
 });
 
 const narrativeResponseSchema = z.object({
@@ -211,8 +213,14 @@ const NARRATIVE_JSON_SCHEMA = {
               type: "string" as const,
               enum: ["common", "uncommon", "rare", "legendary"],
             },
+            approachNarration: {
+              type: "array" as const,
+              items: { type: "string" as const },
+              description:
+                "Distance-based approach narration lines, ordered farthest to closest (every 50m). Each line escalates intensity, referencing the reward item. Short (1-2 sentences), TTS-friendly.",
+            },
           },
-          required: ["objectiveText", "itemName", "itemDescription", "itemRarity"],
+          required: ["objectiveText", "itemName", "itemDescription", "itemRarity", "approachNarration"],
           additionalProperties: false,
         },
       },
@@ -232,28 +240,34 @@ export async function generateNarrative(
   questGoal: string,
   apiKey: string,
   temperature = 0.3,
+  legDistances?: readonly number[],
 ): Promise<NarrativeResponse> {
   const client = new OpenAI({ apiKey });
 
   const lastIdx = places.length - 1;
   const placeList = places
     .map((p, i) => {
+      const tierCount = legDistances?.[i]
+        ? Math.max(0, Math.floor((legDistances[i] - 1) / 50))
+        : 0;
+      const tierSuffix = tierCount > 0 ? ` [${tierCount} approach narration tiers]` : " [0 approach narration tiers]";
+
       if (i === lastIdx) {
         const hasNamedPlace = p.name !== p.address && p.address != null;
         if (hasNamedPlace) {
-          return `${i + 1}. RETURN HOME — use this real place name: "${p.name}"`;
+          return `${i + 1}. RETURN HOME — use this real place name: "${p.name}"${tierSuffix}`;
         }
         const addr = p.address ?? p.name;
-        return `${i + 1}. RETURN HOME — invent a fictional place name from this address: "${addr}" (DO NOT use the raw address as the place name)`;
+        return `${i + 1}. RETURN HOME — invent a fictional place name from this address: "${addr}" (DO NOT use the raw address as the place name)${tierSuffix}`;
       }
-      return `${i + 1}. "${p.name}" (${p.category})`;
+      return `${i + 1}. "${p.name}" (${p.category})${tierSuffix}`;
     })
     .join("\n");
 
   const response = await client.chat.completions.create({
     model: "gpt-4o-mini",
     temperature,
-    max_tokens: 1024,
+    max_tokens: 4096,
     response_format: {
       type: "json_schema",
       json_schema: NARRATIVE_JSON_SCHEMA,
@@ -291,7 +305,15 @@ Rules:
     WRONG: "Valor's Sanctuary" for address "131 La Salle Ave" — this comes from the quest goal, not the address. The player cannot find "La Salle" in the name.
     WRONG: "Cyber Fortress of 2370 Telegraph Ave" — contains "Ave".
     RIGHT: "The La Salle Sanctum" — derived from the street name, recognizable to the player.
-- Generate exactly ${places.length} legs, one per place, in the order given.`,
+- Generate exactly ${places.length} legs, one per place, in the order given.
+
+APPROACH NARRATION:
+Each leg has a tier count (shown in brackets). Generate exactly that many approachNarration lines per leg. These are distance-based narration snippets spoken via TTS as the runner gets closer to the objective, one every 50 meters.
+- Index 0 = farthest (faintest hint), last index = closest (most intense/imminent).
+- Each line MUST reference the leg's reward item and escalate in intensity. Think: sensing → detecting → seeing → overwhelmed.
+- Keep each line to 1-2 short sentences. The runner is jogging and hearing this through headphones.
+- Make the narration feel like the quest world is physically manifesting around the runner as they approach.
+- If tier count is 0, return an empty array.`,
       },
       {
         role: "user",
