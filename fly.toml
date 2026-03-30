@@ -4,8 +4,6 @@ app = 'run-adventure'
 primary_region = 'sjc'
 
 [build]
-  [build.args]
-    NEXT_PUBLIC_GOOGLE_MAPS_KEY = "" # Set via: fly secrets set NEXT_PUBLIC_GOOGLE_MAPS_KEY=your-key
 
 [http_service]
   internal_port = 3000
